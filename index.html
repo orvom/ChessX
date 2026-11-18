@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="author" content="AmiRAli">
+<title>ChessX</title>
+<style>
+:root{
+  --bg:#2b2926; --panel:#262522; --panel2:#312e2b; --line:#3d3a37; --text:#f0efee; --muted:#9b9a97;
+  --pv:#cfcdca; --pvb:#fff; --hover:#46433f; --cur:#4b4845; --stripe:rgba(255,255,255,.03); --thumb:#4a4745;
+  --light:#eeeed2; --dark:#769656; --accent:#81b64c; --accent-d:#5d8f33; --board:640px;
+  --hl:rgba(255,255,51,.5); --shadow:rgba(0,0,0,.5);
+}
+:root[data-theme="light"]{
+  --bg:#e9e7e3; --panel:#ffffff; --panel2:#f1efeb; --line:#e1ded8; --text:#2b2926; --muted:#7c7871;
+  --pv:#55514b; --pvb:#1b1a18; --hover:#e4e1db; --cur:#dfdcd5; --stripe:rgba(0,0,0,.03); --thumb:#c9c5be; --shadow:rgba(0,0,0,.22);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none}
+#app{display:flex;gap:18px;justify-content:center;align-items:center;height:100%;padding:16px}
+/* ---- eval bar ---- */
+#evalbar{width:30px;height:var(--board);background:#403d39;border-radius:6px;position:relative;overflow:hidden;flex:none;
+  box-shadow:0 2px 8px var(--shadow)}
+#evalfill{position:absolute;left:0;right:0;bottom:0;background:#fff;height:var(--ev,50%);transition:height .5s ease,width .5s ease}
+#evalbar.flip #evalfill{bottom:auto;top:0}
+.evlabel{position:absolute;left:0;right:0;text-align:center;font-size:11px;font-weight:700;padding:3px 0}
+#evtop{top:0}#evbot{bottom:0}
+/* ---- center ---- */
+#center{display:flex;flex-direction:column;gap:8px;flex:none}
+.pbar{display:flex;align-items:center;gap:10px;height:34px;width:var(--board)}
+.avatar{width:34px;height:34px;border-radius:4px;display:grid;place-items:center;font-size:20px;flex:none}
+.avatar.w{background:#f0efee;color:#262522}.avatar.b{background:#403d39;color:#f0efee}
+.pname{font-weight:600;font-size:15px}
+.turn-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);display:none}
+.pbar.active .turn-dot{display:block}
+.caps{display:flex;align-items:center;height:20px;margin-left:4px}
+.caps img{width:18px;height:18px;margin-right:-7px}
+.caps .adv{margin-left:12px;font-size:12px;font-weight:700;color:var(--muted)}
+#opening{width:var(--board);height:20px;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#opening b{color:var(--text);font-weight:600}
+#board{position:relative;width:var(--board);height:var(--board);border-radius:5px;overflow:hidden;
+  box-shadow:0 6px 24px var(--shadow);touch-action:none;cursor:default}
+#board.mate{animation:matepulse 1.1s ease-in-out 2}
+@keyframes matepulse{50%{box-shadow:0 0 0 4px rgba(250,65,45,.8),0 0 40px rgba(250,65,45,.6)}}
+.sq{position:absolute;width:12.5%;height:12.5%}
+.sq.l{background:var(--light)}.sq.d{background:var(--dark)}
+.sq .co{position:absolute;font-size:calc(var(--board)/58);font-weight:700;line-height:1;pointer-events:none}
+.sq.l .co{color:var(--dark)}.sq.d .co{color:var(--light)}
+.co.r{top:4%;left:5%}.co.f{bottom:4%;right:5%}
+.hl{position:absolute;width:12.5%;height:12.5%;background:var(--hl);pointer-events:none}
+.hl.chk{background:radial-gradient(circle,rgba(255,0,0,1) 0%,rgba(231,0,0,1) 25%,rgba(169,0,0,0) 89%,rgba(158,0,0,0) 100%)}
+#board.mate .hl.chk{animation:chkp .55s ease-in-out infinite alternate}
+@keyframes chkp{to{transform:scale(1.25)}}
+.dot{position:absolute;width:12.5%;height:12.5%;pointer-events:none}
+.dot::after{content:"";position:absolute;left:34%;top:34%;width:32%;height:32%;border-radius:50%;background:rgba(0,0,0,.16)}
+.dot.cap::after{left:0;top:0;width:100%;height:100%;background:radial-gradient(circle,transparent 62%,rgba(0,0,0,.16) 63%)}
+.pc{position:absolute;width:12.5%;height:12.5%;pointer-events:none}
+.pc img{width:100%;height:100%;display:block;filter:drop-shadow(0 1.5px 1.5px rgba(0,0,0,.28))}
+.pc.ghosted{opacity:.3}
+.pc.anim{transition:transform .2s cubic-bezier(.3,.7,.3,1)}
+.pc.out{animation:fadeout .28s ease-out forwards;z-index:0}
+@keyframes fadeout{to{opacity:0;transform:scale(.55)}}
+#ghost{position:fixed;pointer-events:none;z-index:50;display:none}
+#ghost img{width:100%;height:100%;filter:drop-shadow(0 8px 6px rgba(0,0,0,.4));transform:scale(1.12)}
+#arrows,#shapes{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#arrows polygon{animation:fadein .25s ease-out}
+@keyframes fadein{from{opacity:0}}
+.lbl{position:absolute;width:4.8%;height:4.8%;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;
+  font-size:calc(var(--board)*.024);line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.5);pointer-events:none;z-index:5;
+  animation:pop .22s cubic-bezier(.3,1.6,.5,1)}
+@keyframes pop{from{transform:scale(0)}}
+#promo{position:absolute;inset:0;background:rgba(0,0,0,.45);display:none;z-index:20}
+#promo .opt{position:absolute;width:12.5%;height:12.5%;background:#fff;display:grid;place-items:center;cursor:pointer;
+  box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#promo .opt:hover{background:#ffe08a}
+#promo .opt img{width:92%;height:92%}
+#over{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--panel);border-radius:10px;
+  padding:22px 30px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.6);display:none;z-index:30;animation:overin .45s cubic-bezier(.3,1.4,.5,1)}
+@keyframes overin{from{opacity:0;transform:translate(-50%,-40%) scale(.85)}}
+#over h2{margin:0 0 4px;font-size:22px}#over p{margin:0 0 14px;color:var(--muted)}
+/* ---- side panel ---- */
+#side{width:360px;height:calc(var(--board) + 104px);display:flex;flex-direction:column;gap:10px;flex:none}
+.card{background:var(--panel);border-radius:8px;box-shadow:0 2px 10px var(--shadow)}
+.card h3{margin:0;padding:10px 14px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);
+  display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);gap:8px}
+.chip{background:var(--panel2);border-radius:20px;padding:2px 9px;font-size:11px;color:var(--text);text-transform:none;letter-spacing:0;white-space:nowrap}
+.gear{background:none;padding:2px 6px;font-size:18px;color:var(--muted);flex-direction:row}
+.gear:hover:not(:disabled){background:var(--panel2);color:var(--text)}
+#fb{display:none;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13.5px}
+#fb .bd{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px;flex:none}
+#fb small{color:var(--muted);display:block;font-size:12px}
+#lines{padding:6px 0}
+.ln{display:flex;gap:10px;align-items:flex-start;padding:7px 12px;border-left:4px solid transparent;cursor:pointer}
+.ln:hover{background:var(--panel2)}
+.badge{flex:none;min-width:52px;text-align:center;font-weight:800;font-size:13px;padding:3px 6px;border-radius:4px}
+.badge.pos{background:#fff;color:#1b1a18;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}.badge.neg{background:#403d39;color:#fff}
+.pv{font-size:13.5px;line-height:1.4;color:var(--pv);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.pv b{color:var(--pvb)}
+.empty{padding:14px;color:var(--muted);font-size:13px}
+#movescard{flex:1;min-height:0;display:flex;flex-direction:column}
+#moves{flex:1;overflow-y:auto;padding:6px 0;font-size:14px}
+#moves::-webkit-scrollbar{width:8px}#moves::-webkit-scrollbar-thumb{background:var(--thumb);border-radius:4px}
+.mr{display:grid;grid-template-columns:44px 1fr 1fr;align-items:center}
+.mr:nth-child(odd){background:var(--stripe)}
+.mr .n{color:var(--muted);padding:4px 0 4px 14px;font-size:13px}
+.mr .m{padding:4px 8px;font-weight:600}
+.mr .m.cur{background:var(--cur);border-radius:4px}
+.mr .m[data-ply]{cursor:pointer}.mr .m[data-ply]:hover{background:var(--hover);border-radius:4px}.mr .m.fut{opacity:.5}
+.ml{font-weight:800;font-size:12px;margin-left:5px}
+#ctrls{padding:10px;display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+button{font:inherit;color:var(--text);background:var(--panel2);border:0;border-radius:6px;padding:9px 4px;cursor:pointer;
+  font-weight:600;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:2px;transition:background .12s,transform .08s}
+button:hover:not(:disabled){background:var(--hover)}button:active:not(:disabled){transform:scale(.96)}button:disabled{opacity:.35;cursor:default}
+button .ic{font-size:17px;line-height:1}
+button.primary{background:var(--accent);color:#fff;box-shadow:0 3px 0 var(--accent-d)}
+button.primary:hover:not(:disabled){background:#92c75a}
+#opts{padding:10px 14px 12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--muted);border-top:1px solid var(--line)}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:5px;padding:4px 6px;font:inherit}
+.sw{display:flex;align-items:center;gap:7px;cursor:pointer}
+.sw i{width:34px;height:18px;border-radius:10px;background:#8d8a86;position:relative;transition:background .15s;flex:none}
+.sw i::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
+.sw.on i{background:var(--accent)}.sw.on i::after{left:18px}
+#graphcard{display:none;overflow:hidden;cursor:pointer;height:74px}
+#graph{display:block;width:100%;height:100%}
+.gbg{fill:#403d39}.gfill{fill:#f2f2f2}.gmid{stroke:rgba(128,128,128,.55);stroke-width:1;stroke-dasharray:3 3}.gcur{stroke:#81b64c;stroke-width:2}
+#io{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;place-items:center;z-index:100}
+#io.open{display:grid}
+#iobox{background:var(--panel);border-radius:12px;width:min(560px,94vw);padding:18px 20px 20px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+#iobox h2{margin:0 0 10px;font-size:18px;display:flex;justify-content:space-between;align-items:center}
+#ioText{width:100%;height:210px;resize:vertical;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;
+  font:13px/1.45 Consolas,monospace;user-select:text;-webkit-user-select:text}
+.iob{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.iob button{flex-direction:row;padding:9px 14px}
+#ioMsg{min-height:20px;margin-top:8px;font-size:13px;color:var(--muted)}#ioMsg.err{color:#ff8a80}
+#wdl{display:none;height:20px;margin:8px 12px 0;border-radius:4px;overflow:hidden;font-size:11px;font-weight:700;line-height:20px;text-align:center}
+#wdl span{display:block;overflow:hidden;white-space:nowrap;transition:width .4s}
+#wdl .ww{background:#f2f2f2;color:#222}#wdl .wd{background:#8a8785;color:#fff}#wdl .wb{background:#403d39;color:#fff}
+#bAnalyze.busy{background:var(--accent);color:#fff}
+#review{border-top:1px solid var(--line);padding:6px 14px 8px;font-size:13px;display:none}
+.rv{display:flex;align-items:center;gap:8px;padding:2px 0}.rv .rn{width:42px;font-weight:600}.rv .ra{font-weight:800;min-width:48px}
+.rv .rc{display:flex;gap:7px;flex-wrap:wrap;font-weight:700;font-size:12px}.rv small{color:var(--muted);font-weight:400}
+.tg small{color:var(--muted);font-size:12px;margin-left:8px;font-weight:400}
+#err{color:#ff8a80;padding:8px 14px;font-size:13px;display:none}
+/* ---- settings modal ---- */
+#settings{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;place-items:center;z-index:100}
+#settings.open{display:grid}
+#sbox{background:var(--panel);border-radius:12px;width:min(520px,94vw);max-height:90vh;overflow:auto;padding:18px 20px 20px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+#sbox h2{margin:0 0 14px;font-size:18px;display:flex;justify-content:space-between;align-items:center}
+.srow{margin:14px 0 6px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.seg{display:flex;gap:6px}.seg button{flex:1;flex-direction:row;justify-content:center;padding:8px}
+.seg button.on,.opt.on{outline:2px solid var(--accent)}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}
+.swt{width:64px;height:64px;border-radius:8px;overflow:hidden;cursor:pointer;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;border:0;padding:0}
+.swt div{min-height:0}
+:root[data-theme="dark"] #sbox,:root[data-theme="dark"] #moves{color-scheme:dark}
+.swt.on{outline:3px solid var(--accent);outline-offset:2px}
+.pset{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px}
+.pset .opt{background:var(--panel2);border-radius:8px;padding:6px 4px 4px;cursor:pointer;text-align:center;font-size:11px;color:var(--muted);border:0;flex-direction:column}
+.pset .opt img{width:48px;height:48px}
+.pset .opt.on{outline:3px solid var(--accent);color:var(--text)}
+.tg{display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:14px}
+/* ---- mobile / narrow ---- */
+@media (max-width:860px){
+  html,body{overflow:auto}
+  #app{flex-direction:column;justify-content:flex-start;align-items:center;height:auto;min-height:100%;gap:10px;padding:8px 8px 24px}
+  #evalbar{width:var(--board);height:18px;border-radius:9px}
+  #evalfill{top:0;bottom:0;left:0;right:auto;height:100%;width:var(--ev,50%)}
+  #evalbar.flip #evalfill{left:auto;right:0}
+  .evlabel{display:none}
+  #side{width:var(--board);height:auto}
+  #movescard{min-height:200px;max-height:300px}
+  #ctrls{grid-template-columns:repeat(5,1fr)}
+  .pname{font-size:14px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="evalbar"><div id="evalfill"></div><div class="evlabel" id="evtop"></div><div class="evlabel" id="evbot"></div></div>
+
+  <div id="center">
+    <div class="pbar" id="topbar"></div>
+    <div id="board">
+      <svg id="arrows" viewBox="0 0 8 8"></svg>
+      <svg id="shapes" viewBox="0 0 8 8"></svg>
+      <div id="promo"></div>
+      <div id="over"><h2 id="overT"></h2><p id="overS"></p><button class="primary" id="overBtn" style="flex-direction:row;justify-content:center;padding:10px 22px;margin:auto">New game</button></div>
+    </div>
+    <div class="pbar" id="botbar"></div>
+    <div id="opening"></div>
+  </div>
+
+  <div id="side">
+    <div class="card">
+      <h3><span id="engname">Stockfish</span><span style="display:flex;gap:8px;align-items:center"><span class="chip" id="depth">depth 0</span><button class="gear" id="bFile" title="Import / Export (PGN, FEN)">📄</button><button class="gear" id="bGear" title="Settings">⚙</button></span></h3>
+      <div id="fb"></div>
+      <div id="wdl" title=""></div>
+      <div id="lines"></div>
+      <div id="err"></div>
+      <div id="opts">
+        <label class="sw on" id="swHints"><i></i>Hints</label>
+        <label class="sw on" id="swThreats" title="Red arrows: what your opponent threatens"><i></i>Threats</label>
+        <span>Lines <select id="selLines"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></span>
+        <span>Time <select id="selTime"><option value="0" selected>∞</option><option value="3">3s</option><option value="5">5s</option><option value="10">10s</option><option value="30">30s</option></select></span>
+      </div>
+    </div>
+    <div class="card" id="graphcard" title="Click to jump to a move"><svg id="graph" viewBox="0 0 300 74" preserveAspectRatio="none"></svg></div>
+    <div class="card" id="movescard"><h3><span>Moves</span><span style="display:flex;gap:8px;align-items:center"><button class="gear" id="bAnalyze" style="font-size:12px;padding:3px 9px;font-weight:700">⚡ Analyze game</button><span class="chip" id="turnchip">White to move</span></span></h3><div id="moves"></div><div id="review"></div></div>
+    <div class="card" id="ctrls">
+      <button id="bNew"><span class="ic">＋</span>New</button>
+      <button id="bUndo" title="Undo (←)"><span class="ic">↶</span>Undo</button>
+      <button id="bRedo"><span class="ic">↷</span>Redo</button>
+      <button id="bFlip"><span class="ic">⇅</span>Flip</button>
+      <button id="bBest" class="primary" title="Play the best move (Space or B)"><span class="ic">★</span>Best</button>
+    </div>
+  </div>
+</div>
+<div id="ghost"></div>
+
+<div id="io"><div id="iobox">
+  <h2>Import / Export <button class="gear" id="ioClose" style="font-size:20px">✕</button></h2>
+  <textarea id="ioText" spellcheck="false" placeholder="Paste a PGN or a FEN here, then press Load."></textarea>
+  <div id="ioMsg"></div>
+  <div class="iob">
+    <button class="primary" id="ioLoad">Load</button>
+    <button id="ioCopyPgn">Copy PGN</button><button id="ioCopyFen">Copy FEN</button>
+    <button id="ioDown">Download .pgn</button><button id="ioOpen">Open file…</button>
+    <input type="file" id="ioFile" accept=".pgn,.txt,.fen" style="display:none">
+  </div>
+</div></div>
+
+<div id="settings"><div id="sbox">
+  <h2>Settings <button class="gear" id="sClose" style="font-size:20px">✕</button></h2>
+  <div class="srow">Appearance</div>
+  <div class="seg" id="segTheme"><button data-v="auto">Auto</button><button data-v="light">☀ Light</button><button data-v="dark">☾ Dark</button></div>
+  <div class="srow">Board</div>
+  <div class="swatches" id="boards"></div>
+  <div class="srow">Pieces</div>
+  <div class="pset" id="psets"></div>
+  <div class="srow">Other</div>
+  <div class="tg"><span>Sound effects</span><label class="sw" id="swSound"><i></i></label></div>
+  <div class="tg"><span>Move quality labels (Best / Mistake / Blunder…)</span><label class="sw" id="swLabels"><i></i></label></div>
+  <div class="srow">Engine (Stockfish)</div>
+  <div class="tg"><span>Threads<small>CPU cores used</small></span><select id="selThreads"></select></div>
+  <div class="tg"><span>Hash memory<small>MB of cache</small></span><select id="selHash"><option>64</option><option>128</option><option>256</option><option>512</option><option>1024</option><option>2048</option></select></div>
+  <div class="tg"><span>Battery saver<small>1 thread · 64 MB · stops after 5 s</small></span><label class="sw" id="swSaver"><i></i></label></div>
+  <div class="tg"><span style="color:var(--muted);font-size:12px">Right-click: arrows &amp; circles (Shift = yellow, Ctrl = blue, Alt = purple)</span></div>
+  <div class="tg" style="justify-content:center;color:var(--muted);font-size:12px;margin-top:10px;border-top:1px solid var(--line)">ChessX · made by AmiRAli ·&nbsp;<a href="https://aphex.ir" target="_blank" rel="noopener" style="color:var(--accent)">aphex.ir</a></div>
+</div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const ARROW = ['#4caf50', '#3d8bfd', '#f5a623', '#a855f7', '#ef5350'];
+const VAL = {p:1, n:3, b:3, r:5, q:9};
+const BOARDS = {green:['#eeeed2','#769656'], brown:['#f0d9b5','#b58863'], blue:['#dee3e6','#8ca2ad'],
+                purple:['#efefef','#8475b9'], ice:['#e8edf2','#7a99b8'], coral:['#f3e3d3','#c97b63']};
+const LBL = {
+  brilliant:{sym:'!!', c:'#1baca6', n:'Brilliant'}, great:{sym:'!', c:'#5c8bb0', n:'Great move'},
+  best:{sym:'★', c:'#81b64c', n:'Best move'}, excellent:{sym:'👍', c:'#81b64c', n:'Excellent'},
+  good:{sym:'✓', c:'#7fa650', n:'Good'}, book:{sym:'📖', c:'#a88865', n:'Book move'},
+  inacc:{sym:'?!', c:'#f7c631', n:'Inaccuracy', dark:1}, mistake:{sym:'?', c:'#ffa459', n:'Mistake'},
+  miss:{sym:'✕', c:'#ff7769', n:'Miss'}, blunder:{sym:'??', c:'#fa412d', n:'Blunder'}
+};
+const LBL_ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'book', 'inacc', 'miss', 'mistake', 'blunder'];
+const PHRASE = {brilliant:'a brilliant move', great:'a great move', best:'the best move', excellent:'an excellent move',
+                good:'a good move', book:'a book move', inacc:'an inaccuracy', miss:'a miss', mistake:'a mistake', blunder:'a blunder'};
+let P = {theme:'dark', board:'green', pieces:'cardinal', sound:true, labels:true};
+try { Object.assign(P, JSON.parse(localStorage.getItem('chessx-prefs') || '{}')); } catch (e) {}
+const savePrefs = () => { try { localStorage.setItem('chessx-prefs', JSON.stringify(P)); } catch (e) {} };
+
+let SETS = [], S = null, flipped = false, selected = null, drag = null, lastSig = '', boardKey = '', plyShown = -1;
+let noAnim = false, audioCtx = null, prevPcs = null, shapes = [], rc = null;
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)};
+  return (await fetch('/api/' + path, opt)).json();
+}
+const sqName = i => 'abcdefgh'[i & 7] + ((i >> 3) + 1);
+const sqIdx = n => (n.charCodeAt(0) - 97) + (parseInt(n[1]) - 1) * 8;
+const pieceUrl = (p, set) => { set = set || P.pieces; const e = SETS.find(x => x.name === set); return `/pieces/${set}/${p === p.toUpperCase() ? 'w' : 'b'}${p.toUpperCase()}.${e ? e.ext : 'svg'}`; };
+const pimg = p => `<img src="${pieceUrl(p)}" alt="" draggable="false">`;
+function parseFen(fen) {
+  const out = new Array(64).fill(null); const rows = fen.split(' ')[0].split('/');
+  for (let r = 0; r < 8; r++) { let f = 0; for (const ch of rows[r]) {
+    if (/\d/.test(ch)) f += +ch; else { out[(7 - r) * 8 + f] = ch; f++; } } }
+  return out;
+}
+function pos(idx) { const f = idx & 7, r = idx >> 3; return { x: (flipped ? 7 - f : f) * 12.5, y: (flipped ? r : 7 - r) * 12.5 }; }
+const legalFrom = sq => S.legal.filter(u => u.startsWith(sq));
+
+/* ---------- preferences / theme ---------- */
+function applyPrefs() {
+  const th = P.theme === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : P.theme;
+  document.documentElement.dataset.theme = th;
+  const b = BOARDS[P.board] || BOARDS.green;
+  document.documentElement.style.setProperty('--light', b[0]); document.documentElement.style.setProperty('--dark', b[1]);
+  $('#swSound').classList.toggle('on', P.sound); $('#swLabels').classList.toggle('on', P.labels);
+  document.querySelectorAll('#segTheme button').forEach(x => x.classList.toggle('on', x.dataset.v === P.theme));
+  document.querySelectorAll('.swt').forEach(x => x.classList.toggle('on', x.dataset.v === P.board));
+  document.querySelectorAll('#psets .opt').forEach(x => x.classList.toggle('on', x.dataset.v === P.pieces));
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyPrefs);
+function buildSettings() {
+  $('#boards').innerHTML = ''; $('#psets').innerHTML = '';
+  for (const k in BOARDS) { const b = document.createElement('button'); b.className = 'swt'; b.dataset.v = k; b.title = k;
+    b.innerHTML = `<div style="background:${BOARDS[k][0]}"></div><div style="background:${BOARDS[k][1]}"></div><div style="background:${BOARDS[k][1]}"></div><div style="background:${BOARDS[k][0]}"></div>`;
+    b.onclick = () => { P.board = k; savePrefs(); applyPrefs(); }; $('#boards').appendChild(b); }
+  SETS.forEach(st => { const s = st.name, b = document.createElement('button'); b.className = 'opt'; b.dataset.v = s;
+    b.innerHTML = `<div><img src="/pieces/${s}/wN.${st.ext}" alt="" style="width:38px;height:38px"><img src="/pieces/${s}/bQ.${st.ext}" alt="" style="width:38px;height:38px;margin-left:-14px"></div>${s}`;
+    b.onclick = () => { P.pieces = s; savePrefs(); applyPrefs(); boardKey = ''; if (S) render(true); }; $('#psets').appendChild(b); });
+  document.querySelectorAll('#segTheme button').forEach(x => x.onclick = () => { P.theme = x.dataset.v; savePrefs(); applyPrefs(); });
+  $('#swSound').onclick = () => { P.sound = !P.sound; savePrefs(); applyPrefs(); beep(false); };
+  $('#swLabels').onclick = () => { P.labels = !P.labels; savePrefs(); applyPrefs(); boardKey = ''; if (S) render(true); };
+}
+$('#bGear').onclick = () => $('#settings').classList.add('open');
+$('#sClose').onclick = () => $('#settings').classList.remove('open');
+$('#settings').onclick = e => { if (e.target.id === 'settings') $('#settings').classList.remove('open'); };
+
+function sizeBoard() {
+  const narrow = innerWidth <= 860;
+  let s;
+  if (narrow) s = Math.min(innerWidth - 16, 720);
+  else s = Math.min(innerHeight - 32 - 104 - 18, innerWidth - (30 + 360 + 36 + 32 + 20), 900);
+  s = Math.max(280, s);
+  document.documentElement.style.setProperty('--board', Math.floor(s / 8) * 8 + 'px');
+}
+addEventListener('resize', sizeBoard);
+
+/* ---------- sounds ---------- */
+function beep(cap) {
+  if (!P.sound) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = audioCtx.currentTime;
+    o.type = 'triangle'; o.frequency.setValueAtTime(cap ? 220 : 160, t); o.frequency.exponentialRampToValueAtTime(70, t + .09);
+    g.gain.setValueAtTime(cap ? .35 : .25, t); g.gain.exponentialRampToValueAtTime(.001, t + .12);
+    o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t + .13);
+  } catch (e) {}
+}
+
+/* ---------- move quality ---------- */
+function winPct(s) {
+  if (s.mate !== undefined) return s.mate > 0 ? 100 : 0;
+  return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * s.cp)) - 1);
+}
+const moverWin = (score, k) => { const w = winPct(score); return k % 2 === 0 ? w : 100 - w; };
+function lossOf(k) {
+  const b = S.evals[k], a = S.evals[k + 1];
+  if (!b || !a || b.depth < 7 || a.depth < 7) return null;
+  return Math.max(0, moverWin(b.score, k) - moverWin(a.score, k));
+}
+function labelFor(k) {
+  if (k < 0 || k >= S.ucis.length) return null;
+  if (S.book[k]) return {key:'book', loss:0};
+  const b = S.evals[k], a = S.evals[k + 1];
+  if (!b || !a || b.depth < 7 || a.depth < 7) return null;
+  const wb = moverWin(b.score, k), wa = moverWin(a.score, k), loss = Math.max(0, wb - wa);
+  const isBest = !!(b.uci && b.uci === S.ucis[k]);
+  if (isBest || loss < 2) {
+    // Brilliant: a real material sacrifice that is still (nearly) the best move and not already won/lost.
+    if (S.sacs[k] && wa >= 45 && wb < 93) return {key:'brilliant', loss};
+    // Great: the only move that keeps the position (2nd best is much worse), and it is critical.
+    if (isBest && b.second != null && wb - moverWin(b.second, k) >= 15 && wb > 8 && wb < 97) return {key:'great', loss};
+    return {key: isBest ? 'best' : 'excellent', loss};
+  }
+  // Miss: the opponent just erred and you did not take the chance.
+  const prev = k > 0 && !S.book[k - 1] ? lossOf(k - 1) : null;
+  if (loss >= 10 && prev !== null && prev >= 10 && wb >= 60 && loss < 30) return {key:'miss', loss};
+  const key = loss < 5 ? 'good' : loss < 10 ? 'inacc' : loss < 20 ? 'mistake' : 'blunder';
+  return {key, loss};
+}
+function reviewData() {
+  const side = {w: {acc: [], cnt: {}}, b: {acc: [], cnt: {}}};
+  for (let k = 0; k < S.ucis.length; k++) {
+    const sd = side[k % 2 === 0 ? 'w' : 'b'], l = labelFor(k); if (!l) continue;
+    sd.cnt[l.key] = (sd.cnt[l.key] || 0) + 1;
+    if (l.key !== 'book') sd.acc.push(Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * l.loss) - 3.1669)));
+  }
+  return side;
+}
+
+/* ---------- rendering ---------- */
+function slide(el, fromIdx, toIdx) {
+  const a = pos(fromIdx), c = pos(toIdx);
+  el.style.transform = `translate(${(a.x - c.x) * 8}%, ${(a.y - c.y) * 8}%)`; void el.offsetWidth;
+  el.classList.add('anim'); el.style.transform = '';
+}
+function renderBoard() {
+  const lbl = S.ply && P.labels ? labelFor(S.ply - 1) : null;
+  const key = [S.fen, S.last, selected, flipped, JSON.stringify(S.lines.map(l => l.uci)), S.settings.hints, S.settings.threats, JSON.stringify(S.threats),
+               lbl ? lbl.key : '', P.pieces, !!S.over].join('|');
+  if (key === boardKey) return; boardKey = key;
+  const b = $('#board'), keep = ['arrows', 'shapes', 'promo', 'over'];
+  [...b.children].forEach(c => { if (!keep.includes(c.id)) c.remove(); });
+  const frag = document.createDocumentFragment();
+  const pcs = parseFen(S.fen);
+  const mk = (cls, idx) => { const d = document.createElement('div'); d.className = cls; const p = pos(idx);
+    d.style.left = p.x + '%'; d.style.top = p.y + '%'; return d; };
+  for (let i = 0; i < 64; i++) {
+    const d = mk('sq ' + ((((i & 7) + (i >> 3)) % 2) ? 'l' : 'd'), i); const p = pos(i);
+    if (p.x === 0) { const c = document.createElement('span'); c.className = 'co r'; c.textContent = (i >> 3) + 1; d.appendChild(c); }
+    if (p.y === 87.5) { const c = document.createElement('span'); c.className = 'co f'; c.textContent = 'abcdefgh'[i & 7]; d.appendChild(c); }
+    frag.appendChild(d);
+  }
+  const hl = idx => frag.appendChild(mk('hl', idx));
+  if (S.last) { hl(sqIdx(S.last.slice(0, 2))); hl(sqIdx(S.last.slice(2, 4))); }
+  if (selected) hl(sqIdx(selected));
+  if (S.check) frag.appendChild(mk('hl chk', sqIdx(S.check)));
+  pcs.forEach((p, i) => { if (!p) return; const d = mk('pc', i); d.dataset.sq = sqName(i); d.innerHTML = pimg(p);
+    if (drag && drag.from === sqName(i)) d.classList.add('ghosted'); frag.appendChild(d); });
+  if (selected) { const seen = new Set(); legalFrom(selected).forEach(u => {
+    const t = u.slice(2, 4); if (seen.has(t)) return; seen.add(t);
+    const to = sqIdx(t), piece = pcs[sqIdx(selected)];
+    const cap = pcs[to] || (piece && piece.toLowerCase() === 'p' && (to & 7) !== (sqIdx(selected) & 7));
+    frag.appendChild(mk('dot' + (cap ? ' cap' : ''), to)); }); }
+  if (lbl && S.last) {
+    const m = LBL[lbl.key], p = pos(sqIdx(S.last.slice(2, 4)));
+    const d = document.createElement('div'); d.className = 'lbl'; d.textContent = m.sym; d.style.background = m.c;
+    if (m.dark) d.style.color = '#222';
+    d.style.left = `calc(${p.x}% + 12.5% - 3.6%)`; d.style.top = `calc(${p.y}% - 1.2%)`;
+    if (p.y < 1) d.style.top = '.3%';
+    if (p.x > 87) d.style.left = 'calc(100% - 5%)';
+    frag.appendChild(d);
+  }
+  b.insertBefore(frag, $('#arrows'));
+  // animations: slide the moved piece, fade out a captured one, handle castling
+  if (S.last && !noAnim && S.ply === plyShown + 1) {
+    const from = sqIdx(S.last.slice(0, 2)), to = sqIdx(S.last.slice(2, 4));
+    const el = b.querySelector('.pc[data-sq="' + sqName(to) + '"]'); const mover = pcs[to];
+    if (el) slide(el, from, to);
+    if (mover && mover.toLowerCase() === 'k' && Math.abs((from & 7) - (to & 7)) === 2) {
+      const rf = (to & 7) === 6 ? from + 3 : from - 4, rt = (to & 7) === 6 ? from + 1 : from - 1;
+      const rel = b.querySelector('.pc[data-sq="' + sqName(rt) + '"]'); if (rel) slide(rel, rf, rt);
+    }
+  }
+  if (S.last && S.ply === plyShown + 1 && prevPcs) {
+    const to = sqIdx(S.last.slice(2, 4)), was = prevPcs[to];
+    if (was) { const d = mk('pc out', to); d.innerHTML = pimg(was); b.insertBefore(d, b.querySelector('.pc')); d.onanimationend = () => d.remove(); }
+  }
+  prevPcs = pcs;
+  b.classList.toggle('mate', !!(S.over && S.check));
+  drawArrows(); drawShapes();
+}
+function arrowPoly(a, c, w, hw, hl, off0 = .22) {
+  let x1 = a.x / 12.5 + .5, y1 = a.y / 12.5 + .5, x2 = c.x / 12.5 + .5, y2 = c.y / 12.5 + .5;
+  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+  const sx = x1 + ux * off0, sy = y1 + uy * off0, ex = x2 - ux * .12, ey = y2 - uy * .12, bx = ex - ux * hl, by = ey - uy * hl;
+  return [[sx + nx * w / 2, sy + ny * w / 2], [bx + nx * w / 2, by + ny * w / 2], [bx + nx * hw, by + ny * hw], [ex, ey],
+          [bx - nx * hw, by - ny * hw], [bx - nx * w / 2, by - ny * w / 2], [sx - nx * w / 2, sy - ny * w / 2]]
+    .map(q => q.map(n => n.toFixed(3)).join(',')).join(' ');
+}
+const NS = 'http://www.w3.org/2000/svg';
+function drawArrows() {
+  const svg = $('#arrows'); svg.innerHTML = '';
+  if (S.over) return;
+  if (S.settings.hints) [...S.lines].reverse().forEach((l, ri) => {
+    const i = S.lines.length - 1 - ri;
+    const p = document.createElementNS(NS, 'polygon');
+    p.setAttribute('points', arrowPoly(pos(sqIdx(l.uci.slice(0, 2))), pos(sqIdx(l.uci.slice(2, 4))), i === 0 ? .17 : .11, i === 0 ? .42 : .34, .38));
+    p.setAttribute('fill', ARROW[i]); p.setAttribute('opacity', i === 0 ? '.85' : '.6'); svg.appendChild(p);
+  });
+  if (S.settings.threats) S.threats.forEach(t => {
+    const mate = t.kind === 'mate', p = document.createElementNS(NS, 'polygon');
+    p.setAttribute('points', arrowPoly(pos(sqIdx(t.from)), pos(sqIdx(t.to)), mate ? .13 : .085, mate ? .34 : .26, .27));
+    p.setAttribute('fill', mate ? '#c62828' : '#e53935'); p.setAttribute('opacity', mate ? '.85' : '.7'); svg.appendChild(p);
+  });
+}
+function drawShapes() {
+  const svg = $('#shapes'); svg.innerHTML = '';
+  shapes.forEach(s => {
+    if (s.from === s.to) {
+      const p = pos(sqIdx(s.from)), c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', p.x / 12.5 + .5); c.setAttribute('cy', p.y / 12.5 + .5); c.setAttribute('r', .455);
+      c.setAttribute('fill', 'none'); c.setAttribute('stroke', s.color); c.setAttribute('stroke-width', .075); c.setAttribute('opacity', .85);
+      svg.appendChild(c);
+    } else {
+      const p = document.createElementNS(NS, 'polygon');
+      p.setAttribute('points', arrowPoly(pos(sqIdx(s.from)), pos(sqIdx(s.to)), .15, .36, .34, .12));
+      p.setAttribute('fill', s.color); p.setAttribute('opacity', .8); svg.appendChild(p);
+    }
+  });
+}
+function fmtScore(s) {
+  if (s.mate !== undefined) return (s.mate > 0 ? 'M' : '-M') + Math.abs(s.mate);
+  const v = s.cp / 100; return (v > 0 ? '+' : '') + v.toFixed(1);
+}
+function winFrac(s) { return winPct(s) / 100; }
+function renderPanel() {
+  $('#engname').textContent = S.engine; $('#depth').textContent = 'depth ' + S.depth;
+  const err = $('#err'); err.style.display = S.error ? 'block' : 'none'; err.textContent = S.error || '';
+  // feedback on the last move
+  const fb = $('#fb'), k = S.ply - 1, lb = P.labels && k >= 0 ? labelFor(k) : null;
+  if (lb) {
+    const m = LBL[lb.key], before = S.evals[k]; let sub = '';
+    if (lb.key === 'book') sub = S.opening ? S.opening.name : '';
+    else if (lb.key !== 'best' && before && before.san) sub = 'Best was ' + before.san;
+    fb.style.display = 'flex';
+    fb.innerHTML = `<span class="bd" style="background:${m.c};${m.dark ? 'color:#222' : ''}">${m.sym}</span><div><b>${S.moves[k]}</b> is ${PHRASE[lb.key]}${sub ? '<small>' + sub + '</small>' : ''}</div>`;
+  } else fb.style.display = 'none';
+  const L = $('#lines'); L.innerHTML = '';
+  if (!S.settings.hints) L.innerHTML = '<div class="empty">Hints are off.</div>';
+  else if (S.over) L.innerHTML = '<div class="empty">Game over.</div>';
+  else if (S.job) L.innerHTML = `<div class="empty">Analyzing the whole game… ${S.job.idx}/${S.job.total}</div>`;
+  else if (!S.lines.length) L.innerHTML = '<div class="empty">Thinking…</div>';
+  S.lines.forEach((l, i) => {
+    const d = document.createElement('div'); d.className = 'ln'; d.style.borderLeftColor = ARROW[i];
+    d.title = 'Double-click to play ' + l.san;
+    const sc = l.score, neg = sc.mate !== undefined ? sc.mate < 0 : sc.cp < 0, sp = l.pv.indexOf(' ');
+    d.innerHTML = `<span class="badge ${neg ? 'neg' : 'pos'}">${fmtScore(sc)}</span><span class="pv"><b>${sp < 0 ? l.pv : l.pv.slice(0, sp)}</b>${sp < 0 ? '' : ' ' + l.pv.slice(sp + 1)}</span>`;
+    d.ondblclick = () => playUci(l.uci);
+    L.appendChild(d);
+  });
+  // eval bar
+  const sc = S.lines.length ? S.lines[0].score : null; let f = .5;
+  if (S.over) f = S.over.result === '1-0' ? 1 : S.over.result === '0-1' ? 0 : .5;
+  else if (sc) f = winFrac(sc);
+  $('#evalbar').style.setProperty('--ev', (f * 100) + '%'); $('#evalbar').classList.toggle('flip', flipped);
+  $('#evtop').textContent = ''; $('#evbot').textContent = '';
+  const txt = S.over ? S.over.result : (sc ? fmtScore(sc).replace(/[+-]/, '') : '');
+  const whiteLeads = f >= .5, whiteAtTop = flipped, leaderAtTop = whiteLeads === whiteAtTop;
+  const el = leaderAtTop ? $('#evtop') : $('#evbot'); el.textContent = txt; el.style.color = whiteLeads ? '#1b1a18' : '#fff';
+  renderExtras();
+  // opening
+  $('#opening').innerHTML = S.opening ? `📖 <b>${S.opening.eco}</b> · ${S.opening.name}` : '';
+  // moves
+  const M = $('#moves'); M.innerHTML = '';
+  const tag = i => { const l = P.labels ? labelFor(i) : null;
+    return l ? `<span class="ml" style="color:${LBL[l.key].dark ? '#d9a400' : LBL[l.key].c}" title="${LBL[l.key].n}">${LBL[l.key].sym}</span>` : ''; };
+  for (let i = 0; i < S.moves.length; i += 2) {
+    const r = document.createElement('div'); r.className = 'mr';
+    const cur = j => (j === S.ply - 1 ? ' cur' : '') + (j >= S.ply ? ' fut' : '');
+    r.innerHTML = `<span class="n">${i / 2 + 1}.</span><span class="m${cur(i)}" data-ply="${i + 1}">${S.moves[i]}${tag(i)}</span>` +
+      (S.moves[i + 1] ? `<span class="m${cur(i + 1)}" data-ply="${i + 2}">${S.moves[i + 1]}${tag(i + 1)}</span>` : '<span class="m"></span>');
+    M.appendChild(r);
+  }
+  const curEl = M.querySelector('.cur'); if (curEl) curEl.scrollIntoView({block: 'nearest'}); else M.scrollTop = 0;
+  $('#turnchip').textContent = S.over ? S.over.text : (S.turn === 'w' ? 'White to move' : 'Black to move');
+  $('#bUndo').disabled = !S.ply; $('#bRedo').disabled = !S.can_redo; $('#bBest').disabled = !S.lines.length;
+  $('#swHints').classList.toggle('on', S.settings.hints);
+  if (document.activeElement !== $('#selLines')) $('#selLines').value = S.settings.lines;
+  if (document.activeElement !== $('#selTime')) $('#selTime').value = S.settings.seconds;
+  $('#over').style.display = S.over ? 'block' : 'none';
+  if (S.over) { $('#overT').textContent = S.over.result === '1/2-1/2' ? 'Draw' : (S.over.result === '1-0' ? 'White won' : 'Black won'); $('#overS').textContent = S.over.text; }
+  // player bars
+  const counts = {}; parseFen(S.fen).forEach(p => { if (p) counts[p] = (counts[p] || 0) + 1; });
+  const start = {p:8, n:2, b:2, r:2, q:1}, capBy = { w: [], b: [] }; let diff = 0;
+  for (const t in start) {
+    const missB = Math.max(0, start[t] - (counts[t] || 0)), missW = Math.max(0, start[t] - (counts[t.toUpperCase()] || 0));
+    for (let q = 0; q < missB; q++) capBy.w.push(t); for (let q = 0; q < missW; q++) capBy.b.push(t.toUpperCase());
+    diff += (missB - missW) * VAL[t];
+  }
+  const order = 'pnbrq', sortCap = a => a.sort((x, y) => order.indexOf(x.toLowerCase()) - order.indexOf(y.toLowerCase()));
+  const bar = (el, side) => {
+    const mine = side === 'w' ? diff : -diff;
+    el.className = 'pbar' + (S.turn === side && !S.over ? ' active' : '');
+    el.innerHTML = `<div class="avatar ${side}">${side === 'w' ? '♔' : '♚'}</div><span class="pname">${side === 'w' ? 'White' : 'Black'}</span><span class="turn-dot"></span>
+      <span class="caps">${sortCap(capBy[side]).map(pimg).join('')}${mine > 0 ? '<span class="adv">+' + mine + '</span>' : ''}</span>`;
+  };
+  bar($('#topbar'), flipped ? 'w' : 'b'); bar($('#botbar'), flipped ? 'b' : 'w');
+}
+function render(force) {
+  if (!force && S.ply > plyShown && plyShown !== -1) beep(S.moves[S.ply - 1].includes('x'));
+  if (S.ply !== plyShown) shapes = [];
+  if (!drag) renderBoard();
+  renderPanel();
+  plyShown = S.ply; noAnim = false; drawGraph();
+}
+
+/* ---------- interaction ---------- */
+function sqFromEvent(e) {
+  const r = $('#board').getBoundingClientRect(); const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+  if (x < 0 || x >= 1 || y < 0 || y >= 1) return null;
+  const c = Math.floor(x * 8), rw = Math.floor(y * 8);
+  return sqName((flipped ? rw : 7 - rw) * 8 + (flipped ? 7 - c : c));
+}
+async function playUci(uci) { selected = null; boardKey = ''; await api('move', {uci}); await refresh(); }
+async function tryMove(from, to, dragged) {
+  const cands = S.legal.filter(u => u.startsWith(from + to)); if (!cands.length) return false;
+  if (cands.length > 1) { askPromo(from, to, dragged); return true; }
+  noAnim = !!dragged; selected = null; await playUci(cands[0]); return true;
+}
+function askPromo(from, to, dragged) {
+  const Pm = $('#promo'); Pm.innerHTML = ''; Pm.style.display = 'block';
+  const white = S.turn === 'w', p = pos(sqIdx(to)), down = p.y < 50;
+  ['q', 'n', 'r', 'b'].forEach((t, k) => {
+    const d = document.createElement('div'); d.className = 'opt'; d.style.left = p.x + '%';
+    d.style.top = (down ? p.y + k * 12.5 : p.y - k * 12.5) + '%'; d.innerHTML = pimg(white ? t.toUpperCase() : t);
+    d.onclick = ev => { ev.stopPropagation(); Pm.style.display = 'none'; noAnim = !!dragged; playUci(from + to + t); };
+    Pm.appendChild(d);
+  });
+  Pm.onclick = () => { Pm.style.display = 'none'; selected = null; boardKey = ''; renderBoard(); };
+}
+const boardEl = $('#board');
+boardEl.addEventListener('contextmenu', e => e.preventDefault());
+boardEl.addEventListener('pointerdown', e => {
+  if (!S) return;
+  if (e.button === 2) { const sq = sqFromEvent(e); if (sq) { rc = sq; boardEl.setPointerCapture(e.pointerId); } return; }
+  if (e.button !== 0) return;
+  if (shapes.length) { shapes = []; drawShapes(); }
+  if (S.over) return;
+  const sq = sqFromEvent(e); if (!sq) return;
+  if (selected && selected !== sq && S.legal.some(u => u.startsWith(selected + sq))) { tryMove(selected, sq, false); return; }
+  const piece = parseFen(S.fen)[sqIdx(sq)];
+  const mine = piece && (piece === piece.toUpperCase()) === (S.turn === 'w');
+  if (mine && legalFrom(sq).length) {
+    const wasSel = selected === sq; selected = sq; boardKey = '';
+    drag = {from: sq, piece, wasSel};
+    const g = $('#ghost'), sz = boardEl.getBoundingClientRect().width / 8;
+    g.style.width = g.style.height = sz + 'px'; g.innerHTML = pimg(piece); drag.sz = sz;
+    renderBoard(); boardEl.setPointerCapture(e.pointerId); moveGhost(e);
+  } else { selected = null; boardKey = ''; renderBoard(); }
+});
+function moveGhost(e) {
+  if (!drag) return; const g = $('#ghost');
+  g.style.display = 'block'; g.style.left = (e.clientX - drag.sz / 2) + 'px'; g.style.top = (e.clientY - drag.sz / 2) + 'px';
+}
+boardEl.addEventListener('pointermove', e => { if (drag) moveGhost(e); });
+boardEl.addEventListener('pointerup', async e => {
+  if (e.button === 2 && rc) {
+    const to = sqFromEvent(e), from = rc; rc = null; if (!to) return;
+    const color = e.shiftKey ? '#f0c929' : e.ctrlKey ? '#3d8bfd' : e.altKey ? '#9c64e8' : '#e8453c';
+    const i = shapes.findIndex(s => s.from === from && s.to === to);
+    if (i >= 0) shapes.splice(i, 1); else shapes.push({from, to, color});
+    drawShapes(); return;
+  }
+  if (!drag) return; const d = drag; drag = null; $('#ghost').style.display = 'none';
+  const sq = sqFromEvent(e);
+  if (sq && sq !== d.from && S.legal.some(u => u.startsWith(d.from + sq))) await tryMove(d.from, sq, true);
+  else if (sq === d.from && d.wasSel) selected = null;
+  boardKey = ''; renderBoard();
+});
+boardEl.addEventListener('pointercancel', () => { drag = null; rc = null; $('#ghost').style.display = 'none'; boardKey = ''; if (S) renderBoard(); });
+
+/* ---------- extras: WDL, analyze, review, engine ---------- */
+function renderExtras() {
+  const w = $('#wdl'), l0 = S.lines[0];
+  if (S.settings.hints && !S.over && l0 && l0.wdl) {
+    const [a, d, b] = l0.wdl, t = (a + d + b) || 1, pa = a / t * 100, pd = d / t * 100, pb = b / t * 100;
+    const tx = v => v >= 9 ? Math.round(v) + '%' : '';
+    w.style.display = 'flex';
+    w.innerHTML = `<span class="ww" style="width:${pa}%">${tx(pa)}</span><span class="wd" style="width:${pd}%">${tx(pd)}</span><span class="wb" style="width:${pb}%">${tx(pb)}</span>`;
+    w.title = `White wins ${pa.toFixed(1)}% · Draw ${pd.toFixed(1)}% · Black wins ${pb.toFixed(1)}%`;
+  } else w.style.display = 'none';
+  const ba = $('#bAnalyze');
+  if (S.job) { ba.textContent = `Analyzing ${S.job.idx}/${S.job.total} ✕`; ba.classList.add('busy'); }
+  else { ba.textContent = '⚡ Analyze game'; ba.classList.remove('busy'); }
+  ba.disabled = !S.moves.length && !S.job;
+  $('#swThreats').classList.toggle('on', S.settings.threats);
+  const cfg = S.engine_cfg, st = $('#selThreads'), sh = $('#selHash');
+  if (st.options.length !== cfg.max_threads) { st.innerHTML = ''; for (let i = 1; i <= cfg.max_threads; i++) st.add(new Option(i, i)); }
+  if (![...sh.options].some(o => +o.value === cfg.hash)) sh.add(new Option(cfg.hash, cfg.hash));
+  if (document.activeElement !== st) st.value = cfg.threads;
+  if (document.activeElement !== sh) sh.value = cfg.hash;
+  st.disabled = sh.disabled = cfg.saver; $('#swSaver').classList.toggle('on', cfg.saver);
+  // review summary (accuracy + counts)
+  const rv = $('#review'), data = reviewData();
+  const rows = ['w', 'b'].filter(x => data[x].acc.length).map(x => {
+    const d = data[x], acc = d.acc.reduce((p, q) => p + q, 0) / d.acc.length;
+    const cnt = LBL_ORDER.filter(k => d.cnt[k]).map(k => `<span style="color:${LBL[k].dark ? '#d9a400' : LBL[k].c}" title="${LBL[k].n}">${LBL[k].sym}${d.cnt[k]}</span>`).join('');
+    return `<div class="rv"><span class="rn">${x === 'w' ? 'White' : 'Black'}</span><span class="ra">${acc.toFixed(1)}%</span><span class="rc">${cnt}</span></div>`;
+  });
+  rv.style.display = rows.length && P.labels ? 'block' : 'none'; rv.innerHTML = rows.join('') + (rows.length ? '<div class="rv"><small>Accuracy · evaluated moves only</small></div>' : '');
+}
+$('#bAnalyze').onclick = () => api('analyze', S.job ? {cancel: true} : {}).then(refresh);
+$('#swThreats').onclick = () => act('settings', {threats: !S.settings.threats});
+$('#selThreads').onchange = e => { P.eng = Object.assign(P.eng || {}, {threads: +e.target.value}); savePrefs(); api('engine', {threads: +e.target.value}).then(refresh); };
+$('#selHash').onchange = e => { P.eng = Object.assign(P.eng || {}, {hash: +e.target.value}); savePrefs(); api('engine', {hash: +e.target.value}).then(refresh); };
+$('#swSaver').onclick = async () => {
+  const on = !S.engine_cfg.saver; P.saver = on; savePrefs();
+  if (on) await api('engine', {saver: true});
+  else await api('engine', {saver: false, threads: (P.eng && P.eng.threads) || Math.max(1, Math.floor(S.engine_cfg.max_threads / 2)), hash: (P.eng && P.eng.hash) || 512});
+  refresh();
+};
+
+/* ---------- evaluation graph ---------- */
+function drawGraph() {
+  const card = $('#graphcard'), n = S.moves.length;
+  card.style.display = n ? 'block' : 'none'; if (!n) return;
+  const W = 300, H = 74, pts = []; let last = 50;
+  for (let i = 0; i <= n; i++) { const e = S.evals[i]; if (e && e.depth >= 4) last = winPct(e.score); pts.push([i / n * W, H - last / 100 * H]); }
+  const line = pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L');
+  const cx = (S.ply / n * W).toFixed(1);
+  $('#graph').innerHTML = `<rect class="gbg" width="${W}" height="${H}"/><path class="gfill" d="M0,${H} L${line} L${W},${H} Z"/>` +
+    `<line class="gmid" x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}"/><line class="gcur" x1="${cx}" y1="0" x2="${cx}" y2="${H}"/>`;
+}
+$('#graphcard').addEventListener('click', e => {
+  const r = $('#graphcard').getBoundingClientRect(), n = S.moves.length; if (!n) return;
+  act('goto', {ply: Math.round((e.clientX - r.left) / r.width * n)});
+});
+$('#moves').addEventListener('click', e => {
+  const t = e.target.closest('[data-ply]'); if (t) act('goto', {ply: +t.dataset.ply});
+});
+
+/* ---------- import / export ---------- */
+const ioMsg = (t, err) => { $('#ioMsg').textContent = t; $('#ioMsg').className = err ? 'err' : ''; };
+async function openIO() {
+  $('#io').classList.add('open'); ioMsg('');
+  $('#ioText').value = await (await fetch('/api/pgn')).text();
+}
+$('#bFile').onclick = openIO;
+$('#ioClose').onclick = () => $('#io').classList.remove('open');
+$('#io').onclick = e => { if (e.target.id === 'io') $('#io').classList.remove('open'); };
+$('#ioLoad').onclick = async () => {
+  const r = await api('load', {text: $('#ioText').value});
+  if (r.ok) { selected = null; boardKey = ''; shapes = []; await refresh(); $('#io').classList.remove('open'); }
+  else ioMsg(r.error || 'Could not load that', true);
+};
+const copyText = async (t, what) => { try { await navigator.clipboard.writeText(t); ioMsg(what + ' copied'); } catch (e) { ioMsg('Could not copy - select the text and press Ctrl+C', true); } };
+$('#ioCopyPgn').onclick = async () => copyText(await (await fetch('/api/pgn')).text(), 'PGN');
+$('#ioCopyFen').onclick = () => copyText(S.fen, 'FEN');
+$('#ioDown').onclick = async () => {
+  const txt = await (await fetch('/api/pgn')).text(), a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([txt], {type: 'application/x-chess-pgn'})); a.download = 'game.pgn'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000); ioMsg('Saved game.pgn to your Downloads');
+};
+$('#ioOpen').onclick = () => $('#ioFile').click();
+$('#ioFile').onchange = e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader();
+  rd.onload = () => { $('#ioText').value = rd.result; ioMsg('File read - press Load'); }; rd.readAsText(f); e.target.value = ''; };
+
+/* ---------- controls ---------- */
+const act = async (p, body) => { selected = null; boardKey = ''; await api(p, body); await refresh(); };
+$('#bNew').onclick = () => act('new', {});
+$('#overBtn').onclick = () => act('new', {});
+$('#bUndo').onclick = () => act('undo', {});
+$('#bRedo').onclick = () => act('redo', {});
+$('#bFlip').onclick = () => { flipped = !flipped; boardKey = ''; renderBoard(); renderPanel(); };
+$('#bBest').onclick = () => { if (S.lines.length) playUci(S.lines[0].uci); };
+$('#swHints').onclick = () => act('settings', {hints: !S.settings.hints});
+$('#selLines').onchange = e => act('settings', {lines: +e.target.value});
+$('#selTime').onchange = e => act('settings', {seconds: +e.target.value});
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowLeft' || (e.ctrlKey && e.key === 'z')) $('#bUndo').click();
+  else if (e.key === 'ArrowRight') $('#bRedo').click();
+  else if (e.key === 'Home') act('goto', {ply: 0});
+  else if (e.key === 'End') act('goto', {ply: S.moves.length});
+  else if (e.key === 'f' || e.key === 'F') $('#bFlip').click();
+  else if (e.key === 'b' || e.key === 'B' || e.key === ' ') { e.preventDefault(); if (!e.repeat) $('#bBest').click(); }
+  else if (e.key === 'n' || e.key === 'N') $('#bNew').click();
+  else if (e.key === 'Escape') { $('#settings').classList.remove('open'); $('#io').classList.remove('open'); selected = null; shapes = []; boardKey = ''; if (S) { renderBoard(); } }
+});
+
+async function refresh() {
+  const s = await api('state'); const sig = JSON.stringify(s);
+  if (sig !== lastSig) { lastSig = sig; S = s; render(); }
+}
+async function init() {
+  sizeBoard(); SETS = await api('pieces');
+  if (!SETS.some(x => x.name === P.pieces)) P.pieces = SETS[0].name;
+  buildSettings(); applyPrefs();
+  try { if (P.eng) await api('engine', P.eng); if (P.saver) await api('engine', {saver: true}); } catch (e) {}
+  await refresh();
+  setInterval(() => refresh().catch(() => {}), 300);
+}
+init();
+</script>
+</body>
+</html>
